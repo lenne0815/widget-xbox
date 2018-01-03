@@ -142,6 +142,76 @@ cpdefine("inline:com-chilipeppr-widget-xbox", ["chilipeppr_ready", /* other depe
 
             console.log("I am done being initted.");
         },
+
+        // This is all by Lenne and Deniz ----v
+        accelBaseval: 1.00,
+        isPausedByPlanner: false, // keeps track of whether we've been told to pause sending by the planner buffer
+        sendCtr: 0,
+        
+        publishSend: function(gcode) {
+            var jsonSend = {
+                D: gcode,
+                Id: "jog" + this.sendCtr
+            };
+            chilipeppr.publish("/com-chilipeppr-widget-serialport/jsonSend", jsonSend);
+            this.sendCtr++;
+            if (this.sendCtr > 999999) this.sendCtr = 0;
+        },
+        jog: function (direction, isFast, is100xFast, is1000xFast, is10000xFast) {
+            var key = direction;
+            var cmd = "G91 G0 ";
+            var feedrate = 200;
+            var mult = 1;
+            var xyz = "";
+            //var val = 0.001;
+            var val = 1.00;
+            //var baseval = 1.00;
+            var baseval = this.accelBaseval;
+
+            // adjust feedrate relative to acceleration
+            //feedrate = feedrate * ((this.accelBaseval / this.baseval) / 2);
+
+            if (key == "Y+") {
+                // up arrow. Y+
+                xyz = "Y";
+                val = baseval; //0.001;
+            } else if (key == "Y-") {
+                // down arrow. Y-
+                xyz = "Y";
+                val = -1 * baseval; //0.001;
+            } else if (key == "X+") {
+                // right arrow. X+
+                xyz = "X";
+                val = baseval; //0.001;
+            } else if (key == "X-") {
+                // left arrow. X-
+                xyz = "X";
+                val = -1 * baseval; //0.001;
+            } else if (key == "Z+") {
+                // page up. Z+
+                xyz = "Z";
+                val = baseval; //0.001;
+            } else if (key == "Z-") {
+                // page down. Z-
+                xyz = "Z";
+                val = -1 * baseval; //0.001;
+            }
+            val = val * mult;
+
+            if (xyz.length > 0) {
+                //cmd += xyz + val + " F" + feedrate + "\nG90\n";
+                cmd += xyz + val + "\nG90\n";
+                // do last minute check to see if planner buffer is too full, if so ignore this cmd
+                if (!(this.isPausedByPlanner)) {
+                    //chilipeppr.publish("/com-chilipeppr-widget-serialport/send", cmd);
+                    this.publishSend(cmd);
+                } else {
+                    console.log("planner buffer full, so not sending jog cmd");
+                }
+            }
+        },
+        // END - This is all by Lenne and Deniz. ----^
+        
         /**
          * Keep track of whether we sent flood/coolant on or off last time
          */
@@ -198,28 +268,50 @@ cpdefine("inline:com-chilipeppr-widget-xbox", ["chilipeppr_ready", /* other depe
         	});
         
         	gamepad.bind(Gamepad.Event.BUTTON_DOWN, function(e) {
-        		// e.control of gamepad e.gamepad pressed down
-        		console.log("e.control of gamepad e.gamepad pressed down. e:", e);
-        		chilipeppr.publish('/com-chilipeppr-elem-flashmsg/flashmsg', 
-        		    "Xbox Controller Button Down", "Control: " + e.control, 500, true); 
-        		    
-        		if (e.control == "FACE_2") {
-        			// Got B button for Feedhold
-        			that.sendGcode("!");
-        		} else if (e.control == "FACE_4") {
-        			// Got coolant toggle
-        			
-        			// See what we sent last time and send other cmd
-        			if (that.lastCoolantCmd == "M7") {
-        				that.sendGcode("M9");
-        				that.lastCoolantCmd = "M9";
-        			} else {
-        				that.sendGcode("M7");
-        				that.lastCoolantCmd = "M7";
-        			}
-        		}
+        	    // e.control of gamepad e.gamepad pressed down
+        	    console.log("e.control of gamepad e.gamepad pressed down. e:", e);
+        	    chilipeppr.publish('/com-chilipeppr-elem-flashmsg/flashmsg',
+        	        "Xbox Controller Button Down", "Control: " + e.control, 500, true);
+
+        	   // // Lenne und Deniz Test ----v
+        	   // var direction = null;
+        	   // if (e.control == "FACE_3") {
+        	   //     // up arrow. Y+
+        	   //     direction = "Y+";
+        	   //     $('#com-chilipeppr-widget-xyz-ftr .jogy').addClass("hilite");
+        	   // }
+        	   // if (direction) {
+        	   //     //that.jog(direction, isFast, is100xFast, is1000xFast, is10000xFast);
+        	   //     that.jog(direction);
+        	   // }
+        	   // // Lenne und Deniz Test ----^
+        	    
+        	    if (e.control == "SELECT_BACK") {
+        	        // Got Select button for Feedhold
+        	        that.sendGcode("!");
+        	    }
+        	    else if (e.control == "START_FORWARD") {
+        	        // Got Start button for Cycle-start
+            		chilipeppr.publish('/com-chilipeppr-widget-gcode/onPlay', null); 
+        	    }
+        	    if (e.control == "FACE_4") {
+        	        // Got Y button for Coolant
+        	        that.sendGcode("M7");
+        	    }
+        	   // else if (e.control == "FACE_4") {
+        	   //     // Got coolant toggle
+        	   //     // See what we sent last time and send other cmd
+        	   //     if (that.lastCoolantCmd == "M7") {
+        	   //         that.sendGcode("M9");
+        	   //         that.lastCoolantCmd = "M9";
+        	   //     }
+        	   //     else {
+        	   //         that.sendGcode("M7");
+        	   //         that.lastCoolantCmd = "M7";
+        	   //     }
+        	   // }
         	});
-        	
+        	        	
         	gamepad.bind(Gamepad.Event.BUTTON_UP, function(e) {
         		// e.control of gamepad e.gamepad released
         		console.log(" e.control of gamepad e.gamepad released. e:", e);
